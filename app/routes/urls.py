@@ -101,9 +101,13 @@ def update_url(url_id):
 
 @urls_bp.route("/<int:url_id>", methods=["DELETE"])
 def delete_url(url_id):
-    url = Url.get_by_id(url_id)
-    url.delete_instance()
-    return "", 204
+    from peewee import DoesNotExist
+    try:
+        url = Url.get_by_id(url_id)
+        url.delete_instance(recursive=True)
+        return "", 204
+    except DoesNotExist:
+        return "", 204
 
 @urls_bp.route("/<string:short_code>/redirect", methods=["GET"])
 def redirect_short_code(short_code):

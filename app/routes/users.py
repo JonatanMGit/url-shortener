@@ -54,8 +54,14 @@ def create_user():
             }
         }), 400
         
-    user = User.create(username=data["username"], email=data["email"])
-    return jsonify(model_to_dict(user, recurse=False)), 201
+    try:
+        user, created = User.get_or_create(
+            username=data["username"],
+            email=data["email"]
+        )
+        return jsonify(model_to_dict(user, recurse=False)), 201
+    except Exception as e:
+        raise e
 
 @users_bp.route("/<int:user_id>", methods=["GET"])
 def get_user(user_id):

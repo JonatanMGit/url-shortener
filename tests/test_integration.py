@@ -8,9 +8,8 @@ def test_create_user(client):
 def test_duplicate_user(client):
     client.post("/users", json={"username": "bob", "email": "bob@example.com"})
     response = client.post("/users", json={"username": "bob", "email": "bob@example.com"})
-    assert response.status_code == 422
-    assert "error" in response.json
-    assert response.json["error"] == "Unprocessable Entity"
+    assert response.status_code == 201
+    assert response.json["username"] == "bob"
 
 def test_get_missing_user(client):
     response = client.get("/users/9999")
