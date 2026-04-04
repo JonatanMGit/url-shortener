@@ -85,5 +85,5 @@ def test_json_details_parsing_fallback(app):
     response = client.get("/events")
     assert response.status_code == 200
     # Must fallback and keep details as string
-    found = any(e.get("details") == "plain text string" for e in response.json)
+    found = any(e.get("details") == "plain text string" for e in response.json["sample"])
     assert found

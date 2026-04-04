@@ -172,6 +172,22 @@ paths:
                 $ref: '#/components/schemas/User'
         '404':
           description: Not Found
+    delete:
+      tags:
+        - Users
+      summary: Delete User
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: The ID of the user to delete
+      responses:
+        '204':
+          description: No Content
+        '404':
+          description: Not Found
 
   /urls:
     post:
@@ -264,6 +280,48 @@ paths:
                 $ref: '#/components/schemas/Url'
         '404':
           description: Not Found
+    delete:
+      tags:
+        - URLs
+      summary: Delete URL
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: The ID of the URL to delete
+      responses:
+        '204':
+          description: No Content
+        '404':
+          description: Not Found
+
+  /urls/{short_code}/redirect:
+    get:
+      tags:
+        - URLs
+      summary: Redirect Short Code
+      description: Redirects the client to the original URL associated with the short code.
+      parameters:
+        - in: path
+          name: short_code
+          required: true
+          schema:
+            type: string
+          description: The generated short code
+      responses:
+        '302':
+          description: Found (Redirecting to original URL)
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '404':
+          description: Not Found
+        '410':
+          description: Gone (Inactive URL)
 
   /r/{short_code}:
     get:
@@ -292,6 +350,26 @@ paths:
           description: Gone (Inactive URL)
 
   /events:
+    post:
+      tags:
+        - Events
+      summary: Create Event
+      description: Create a new analytics or tracking event.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Bad Request
     get:
       tags:
         - Events
@@ -378,6 +456,27 @@ components:
           type: string
           format: date-time
           example: "2025-11-19T03:17:29"
+
+    EventCreate:
+      type: object
+      required:
+        - event_type
+      properties:
+        url_id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        event_type:
+          type: string
+          example: "clicked"
+        details:
+          type: object
+          description: "Optional JSON details for the event"
+          example:
+            short_code: "ALQRog"
+            original_url: "https://google.com"
 
     UrlCreate:
       type: object

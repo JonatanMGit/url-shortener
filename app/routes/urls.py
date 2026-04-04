@@ -60,22 +60,28 @@ def create_url():
         details=json.dumps({"short_code": short_code, "original_url": data["original_url"]})
     )
     
-    return jsonify(model_to_dict(url)), 201
+    return jsonify(model_to_dict(url, recurse=False)), 201
 
 @urls_bp.route("", methods=["GET"])
 def list_urls():
     user_id = request.args.get("user_id", type=int)
+    is_active = request.args.get("is_active")
     
     query = Url.select()
-    if user_id:
+    if user_id is not None:
         query = query.where(Url.user_id == user_id)
         
-    return jsonify([model_to_dict(url) for url in query]), 200
+    if is_active is not None:
+        is_active_val = str(is_active).lower() == "true"
+        query = query.where(Url.is_active == is_active_val)
+        
+    results = [model_to_dict(url, recurse=False) for url in query]
+    return jsonify({"kind": "list", "sample": results, "total_items": len(results)}), 200
 
 @urls_bp.route("/<int:url_id>", methods=["GET"])
 def get_url(url_id):
     url = Url.get_by_id(url_id)
-    return jsonify(model_to_dict(url)), 200
+    return jsonify(model_to_dict(url, recurse=False)), 200
 
 @urls_bp.route("/<int:url_id>", methods=["PUT"])
 def update_url(url_id):
@@ -91,4 +97,32 @@ def update_url(url_id):
         url.is_active = data["is_active"]
         
     url.save()
-    return jsonify(model_to_dict(url)), 200
+    return jsonify(model_to_dict(url, recurse=False)), 200
+
+@urls_bp.route("/<int:url_id>", methods=["DELETE"])
+def delete_url(url_id):
+    url = Url.get_by_id(url_id)
+    url.delete_instance()
+    return "", 204
+
+@urls_bp.route("/<string:short_code>/redirect", methods=["GET"])
+def redirect_short_code(short_code):
+    from peewee import DoesNotExist
+    from flask import redirect
+    try:
+        url = Url.get(Url.short_code == short_code)
+    except DoesNotExist:
+        return jsonify({"error": "Not Found"}), 404
+        
+    if not url.is_active:
+        return jsonify({"error": "Gone"}), 410
+        
+    # Log event
+    import json
+    Event.create(
+        url_id=url,
+        user_id=url.user_id,
+        event_type="clicked",
+        details=json.dumps({"short_code": short_code, "action": "redirect"})
+    )
+    return redirect(url.original_url, code=302)

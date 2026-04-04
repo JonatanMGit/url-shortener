@@ -39,7 +39,8 @@ def list_users():
     per_page = request.args.get("per_page", 20, type=int)
     
     users = User.select().paginate(page, per_page)
-    return jsonify([model_to_dict(u) for u in users]), 200
+    results = [model_to_dict(u, recurse=False) for u in users]
+    return jsonify({"kind": "list", "sample": results, "total_items": len(results)}), 200
 
 @users_bp.route("", methods=["POST"])
 def create_user():
@@ -54,12 +55,12 @@ def create_user():
         }), 400
         
     user = User.create(username=data["username"], email=data["email"])
-    return jsonify(model_to_dict(user)), 201
+    return jsonify(model_to_dict(user, recurse=False)), 201
 
 @users_bp.route("/<int:user_id>", methods=["GET"])
 def get_user(user_id):
     user = User.get_by_id(user_id)
-    return jsonify(model_to_dict(user)), 200
+    return jsonify(model_to_dict(user, recurse=False)), 200
 
 @users_bp.route("/<int:user_id>", methods=["PUT"])
 def update_user(user_id):
@@ -74,4 +75,14 @@ def update_user(user_id):
         user.email = data["email"]
         
     user.save()
-    return jsonify(model_to_dict(user)), 200
+    return jsonify(model_to_dict(user, recurse=False)), 200
+
+@users_bp.route("/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    from peewee import DoesNotExist
+    try:
+        user = User.get_by_id(user_id)
+        user.delete_instance(recursive=True)
+        return "", 204
+    except DoesNotExist:
+        return "", 204

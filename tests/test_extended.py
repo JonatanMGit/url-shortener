@@ -4,7 +4,7 @@ def test_list_users(client):
     client.post("/users", json={"username": "list_user", "email": "list@example.com"})
     response = client.get("/users")
     assert response.status_code == 200
-    assert len(response.json) >= 1
+    assert len(response.json["sample"]) >= 1
 
 def test_update_user(client):
     user_resp = client.post("/users", json={"username": "update_user", "email": "update@example.com"})
@@ -38,6 +38,7 @@ def test_list_and_update_urls(client):
     # List
     list_resp = client.get("/urls")
     assert list_resp.status_code == 200
+    assert len(list_resp.json["sample"]) >= 1
     
     # Update Active Status
     put_resp = client.put(f"/urls/{url_id}", json={"is_active": False})
@@ -52,4 +53,5 @@ def test_list_and_update_urls(client):
 def test_list_events(client):
     response = client.get("/events")
     assert response.status_code == 200
-    assert isinstance(response.json, list)
+    assert response.json["kind"] == "list"
+    assert isinstance(response.json["sample"], list)
