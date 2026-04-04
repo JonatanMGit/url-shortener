@@ -3,6 +3,8 @@ from flask import Blueprint, jsonify, request, Response
 from peewee import DoesNotExist, IntegrityError
 import psycopg2.errors
 
+from app.database import db
+
 errors_bp = Blueprint("errors", __name__)
 
 @errors_bp.app_errorhandler(DoesNotExist)
@@ -25,11 +27,34 @@ def handle_integrity_error(e: IntegrityError) -> Tuple[Response, int]:
                 from playhouse.shortcuts import model_to_dict
                 from app.models.user import User
 
+                username = username.strip()
+                email = email.strip()
+
+                if not db.is_closed():
+                    db.rollback()
+
                 existing = User.get_or_none(
-                    (User.username == username.strip()) & (User.email == email.strip())
+                    (User.username == username) & (User.email == email)
                 )
                 if existing is not None:
                     return jsonify(model_to_dict(existing, recurse=False)), 201
+
+                # If no exact user exists, this can be a sequence drift conflict on users.id.
+                # Realign and attempt one create with the same payload.
+                try:
+                    db.execute_sql(
+                        "SELECT setval(pg_get_serial_sequence('users','id'), COALESCE((SELECT MAX(id) FROM users), 1), true);"
+                    )
+                    created = User.create(username=username, email=email)
+                    return jsonify(model_to_dict(created, recurse=False)), 201
+                except IntegrityError:
+                    if not db.is_closed():
+                        db.rollback()
+                    existing_after = User.get_or_none(
+                        (User.username == username) & (User.email == email)
+                    )
+                    if existing_after is not None:
+                        return jsonify(model_to_dict(existing_after, recurse=False)), 201
 
         # We can extract the constraint name or detail from the original exception
         # orig_exc.diag.constraint_name is available in psycopg2

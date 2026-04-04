@@ -21,13 +21,41 @@ def bulk_load():
     try:
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         reader = csv.DictReader(stream)
+        required_columns = {"username", "email"}
+        if not reader.fieldnames or not required_columns.issubset(set(reader.fieldnames)):
+            missing = sorted(required_columns - set(reader.fieldnames or []))
+            raise ValueError(f"Missing required columns: {', '.join(missing)}")
         rows = list(reader)
+
+        # Avoid sequence drift by not forcing primary keys from CSV.
+        insert_rows = []
+        for row in rows:
+            username = row.get("username")
+            email = row.get("email")
+            if not username or not email:
+                continue
+            user_row = {
+                "username": username,
+                "email": email,
+            }
+            created_at = row.get("created_at")
+            if created_at:
+                user_row["created_at"] = created_at
+            insert_rows.append(user_row)
         
         imported = 0
         with db.atomic():
-            for batch in chunked(rows, 100):
+            for batch in chunked(insert_rows, 100):
                 User.insert_many(batch).on_conflict_ignore().execute()
                 imported += len(batch)
+
+        # Keep PostgreSQL sequence aligned with the table's current max(id).
+        try:
+            db.execute_sql(
+                "SELECT setval(pg_get_serial_sequence('users','id'), COALESCE((SELECT MAX(id) FROM users), 1), true);"
+            )
+        except Exception:
+            pass
                 
         return jsonify({"count": imported}), 200
     except Exception as e:
@@ -114,11 +142,21 @@ def create_user():
             user = User.create(username=username, email=email)
             return jsonify(model_to_dict(user, recurse=False)), 201
         except IntegrityError:
+            # psycopg2 can leave the transaction aborted after an integrity error.
+            if not db.is_closed():
+                db.rollback()
+
             # Handle rare race conditions where the same user is inserted after pre-checks.
             existing = User.get_or_none((User.username == username) & (User.email == email))
             if existing is not None:
                 return jsonify(model_to_dict(existing, recurse=False)), 201
-            raise
+
+            # Self-heal ID sequence drift and retry once.
+            db.execute_sql(
+                "SELECT setval(pg_get_serial_sequence('users','id'), COALESCE((SELECT MAX(id) FROM users), 1), true);"
+            )
+            user = User.create(username=username, email=email)
+            return jsonify(model_to_dict(user, recurse=False)), 201
 
 @users_bp.route("/<int:user_id>", methods=["GET"])
 def get_user(user_id):
