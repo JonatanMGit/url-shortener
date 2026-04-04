@@ -1,5 +1,6 @@
 import random
 import string
+import json
 from flask import Blueprint, current_app, request, jsonify
 from playhouse.shortcuts import model_to_dict
 from urllib.parse import urlparse
@@ -53,7 +54,6 @@ def create_url():
         title=data["title"]
     )
     
-    import json
     Event.create(
         url_id=url,
         user_id=user,
@@ -160,7 +160,6 @@ def redirect_short_code(short_code):
         return jsonify({"error": "Gone"}), 410
         
     # Log event
-    import json
     Event.create(
         url_id=url,
         user_id=url.user_id,
