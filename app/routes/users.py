@@ -2,7 +2,7 @@ import csv
 import io
 from flask import Blueprint, request, jsonify
 from playhouse.shortcuts import model_to_dict
-from peewee import chunked
+from peewee import chunked, IntegrityError
 
 from app.database import db
 from app.models.user import User
@@ -53,15 +53,72 @@ def create_user():
                 "email": "Required email string field"
             }
         }), 400
+
+    username = data["username"]
+    email = data["email"]
+    if not isinstance(username, str) or not isinstance(email, str):
+        return jsonify({
+            "error": "Unprocessable Entity",
+            "details": {
+                "username": "Required string field",
+                "email": "Required email string field"
+            }
+        }), 422
+
+    username = username.strip()
+    email = email.strip()
+    if not username or not email:
+        return jsonify({
+            "error": "Bad Request",
+            "details": {
+                "username": "Required string field",
+                "email": "Required email string field"
+            }
+        }), 400
         
     try:
-        user, created = User.get_or_create(
-            username=data["username"],
-            email=data["email"]
-        )
+        user = User.get((User.username == username) & (User.email == email))
+        # Both match, return as idempotent
         return jsonify(model_to_dict(user, recurse=False)), 201
-    except Exception as e:
-        raise e
+    except User.DoesNotExist:
+        username_exists = User.select().where(User.username == username).exists()
+        email_exists = User.select().where(User.email == email).exists()
+        if username_exists and email_exists:
+            return jsonify({
+                "error": "Unprocessable Entity",
+                "details": {
+                    "conflict": "Both username and email already exist (but not together).",
+                    "origin": "users.create_user"
+                },
+                "debug": {"username": username, "email": email}
+            }), 422
+        elif username_exists:
+            return jsonify({
+                "error": "Unprocessable Entity",
+                "details": {
+                    "username": "Username already exists",
+                    "origin": "users.create_user"
+                },
+                "debug": {"username": username}
+            }), 422
+        elif email_exists:
+            return jsonify({
+                "error": "Unprocessable Entity",
+                "details": {
+                    "email": "Email already exists",
+                    "origin": "users.create_user"
+                },
+                "debug": {"email": email}
+            }), 422
+        try:
+            user = User.create(username=username, email=email)
+            return jsonify(model_to_dict(user, recurse=False)), 201
+        except IntegrityError:
+            # Handle rare race conditions where the same user is inserted after pre-checks.
+            existing = User.get_or_none((User.username == username) & (User.email == email))
+            if existing is not None:
+                return jsonify(model_to_dict(existing, recurse=False)), 201
+            raise
 
 @users_bp.route("/<int:user_id>", methods=["GET"])
 def get_user(user_id):

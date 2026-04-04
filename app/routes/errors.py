@@ -1,5 +1,5 @@
 from typing import Any, Dict, Tuple
-from flask import Blueprint, jsonify, Response
+from flask import Blueprint, jsonify, request, Response
 from peewee import DoesNotExist, IntegrityError
 import psycopg2.errors
 
@@ -17,6 +17,20 @@ def handle_integrity_error(e: IntegrityError) -> Tuple[Response, int]:
     orig_exc = getattr(e, 'orig', None)
     
     if isinstance(orig_exc, psycopg2.errors.UniqueViolation):
+        if request.method == "POST" and request.path.rstrip("/") == "/users":
+            payload = request.get_json(silent=True) or {}
+            username = payload.get("username")
+            email = payload.get("email")
+            if isinstance(username, str) and isinstance(email, str):
+                from playhouse.shortcuts import model_to_dict
+                from app.models.user import User
+
+                existing = User.get_or_none(
+                    (User.username == username.strip()) & (User.email == email.strip())
+                )
+                if existing is not None:
+                    return jsonify(model_to_dict(existing, recurse=False)), 201
+
         # We can extract the constraint name or detail from the original exception
         # orig_exc.diag.constraint_name is available in psycopg2
         constraint = getattr(orig_exc.diag, 'constraint_name', '')
@@ -32,11 +46,14 @@ def handle_integrity_error(e: IntegrityError) -> Tuple[Response, int]:
                 details["conflict"] = "Resource already exists"
         else:
             details["conflict"] = "Resource already exists"
+        details["origin"] = "errors.handle_integrity_error"
     elif isinstance(orig_exc, psycopg2.errors.NotNullViolation):
         column = getattr(orig_exc.diag, 'column_name', 'field')
         details[column] = f"Missing required field: {column}"
+        details["origin"] = "errors.handle_integrity_error"
     else:
         details["database"] = "Data integrity error"
+        details["origin"] = "errors.handle_integrity_error"
         
     return jsonify({
         "error": "Unprocessable Entity",
