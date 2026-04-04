@@ -126,7 +126,7 @@ def redirect_short_code(short_code):
     Event.create(
         url_id=url,
         user_id=url.user_id,
-        event_type="clicked",
+        event_type="click",
         details=json.dumps({"short_code": short_code, "action": "redirect"})
     )
     return redirect(url.original_url, code=302)
