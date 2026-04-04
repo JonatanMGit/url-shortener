@@ -1,0 +1,451 @@
+openapi: 3.0.3
+info:
+  title: MLH PE Hackathon URL Shortener API
+  description: >
+    API specification for the URL shortener project, taken from https://www.mlh-pe-hackathon.com/news/kn7ce8y4bc85knqpfs311apz59846gra
+  version: 1.0.0
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+tags:
+  - name: Health
+    description: System status endpoints
+  - name: Users
+    description: User management operations
+  - name: URLs
+    description: Short URL management operations
+  - name: Events
+    description: Analytics and event tracking
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Ensure the API is running and ready to accept requests.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /users/bulk:
+    post:
+      tags:
+        - Users
+      summary: Bulk Load Users
+      description: Import multiple users via a CSV file.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The users.csv file to import.
+      responses:
+        '200':
+          description: OK or Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    example: 2
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List Users
+      description: Retrieve a list of users. Supports optional pagination.
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: Page number for pagination
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            minimum: 1
+          description: Number of items per page
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      tags:
+        - Users
+      summary: Create User
+      description: Create a new user in the system.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad Request (Invalid Schema)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Entity (Invalid Data)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get User by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: The ID of the user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Not Found
+    put:
+      tags:
+        - Users
+      summary: Update User
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: The ID of the user to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Not Found
+
+  /urls:
+    post:
+      tags:
+        - URLs
+      summary: Create URL
+      description: Create a new shortened URL for a user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UrlCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Url'
+        '400':
+          description: Bad Request
+        '422':
+          description: Unprocessable Entity
+    get:
+      tags:
+        - URLs
+      summary: List URLs
+      description: Retrieve a list of URLs. Supports filtering by user.
+      parameters:
+        - in: query
+          name: user_id
+          schema:
+            type: integer
+          description: Filter URLs by a specific user ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Url'
+
+  /urls/{id}:
+    get:
+      tags:
+        - URLs
+      summary: Get URL by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: The ID of the URL
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Url'
+        '404':
+          description: Not Found
+    put:
+      tags:
+        - URLs
+      summary: Update URL Details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: The ID of the URL to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UrlUpdate'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Url'
+        '404':
+          description: Not Found
+
+  /r/{short_code}:
+    get:
+      tags:
+        - URLs
+      summary: Resolve Short URL
+      description: Redirects the client to the original URL associated with the short code.
+      parameters:
+        - in: path
+          name: short_code
+          required: true
+          schema:
+            type: string
+          description: The generated short code
+      responses:
+        '302':
+          description: Found (Redirecting to original URL)
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '404':
+          description: Not Found
+        '410':
+          description: Gone (Inactive URL)
+
+  /events:
+    get:
+      tags:
+        - Events
+      summary: List Events
+      description: Retrieve a list of tracking events/analytics.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: "silvertrail15"
+        email:
+          type: string
+          format: email
+          example: "silvertrail15@hackstack.io"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-09-19T22:25:05"
+
+    UserCreate:
+      type: object
+      required:
+        - username
+        - email
+      properties:
+        username:
+          type: string
+          example: "testuser"
+        email:
+          type: string
+          format: email
+          example: "testuser@example.com"
+
+    UserUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+          example: "updated_username"
+
+    Url:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        short_code:
+          type: string
+          example: "ALQRog"
+        original_url:
+          type: string
+          format: uri
+          example: "https://opswise.net/harbor/journey/1"
+        title:
+          type: string
+          example: "Service guide lagoon"
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-06-04T00:07:00"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-11-19T03:17:29"
+
+    UrlCreate:
+      type: object
+      required:
+        - user_id
+        - original_url
+        - title
+      properties:
+        user_id:
+          type: integer
+          example: 1
+        original_url:
+          type: string
+          format: uri
+          example: "https://example.com/test"
+        title:
+          type: string
+          example: "Test URL"
+
+    UrlUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          example: "Updated Title"
+        is_active:
+          type: boolean
+          example: false
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        url_id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        event_type:
+          type: string
+          example: "created"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-06-04T00:07:00"
+        details:
+          type: object
+          properties:
+            short_code:
+              type: string
+              example: "ALQRog"
+            original_url:
+              type: string
+              format: uri
+              example: "https://opswise.net/harbor/journey/1"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid data schema"
+        details:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            username: "Must be a string"
