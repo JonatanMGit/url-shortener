@@ -1,9 +1,10 @@
 import random
 import string
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from playhouse.shortcuts import model_to_dict
 from urllib.parse import urlparse
 
+from app.cache import build_resolve_cache_key
 from app.models.url import Url
 from app.models.user import User
 from app.models.event import Event
@@ -59,6 +60,10 @@ def create_url():
         event_type="created",
         details=json.dumps({"short_code": short_code, "original_url": data["original_url"]})
     )
+
+    cache = current_app.extensions.get("cache")
+    if cache:
+        cache.delete(build_resolve_cache_key(short_code))
     
     return jsonify(model_to_dict(url, recurse=False)), 201
 
@@ -97,6 +102,11 @@ def update_url(url_id):
         url.is_active = data["is_active"]
         
     url.save()
+
+    cache = current_app.extensions.get("cache")
+    if cache:
+        cache.delete(build_resolve_cache_key(url.short_code))
+
     return jsonify(model_to_dict(url, recurse=False)), 200
 
 @urls_bp.route("/<int:url_id>", methods=["DELETE"])
@@ -104,7 +114,13 @@ def delete_url(url_id):
     from peewee import DoesNotExist
     try:
         url = Url.get_by_id(url_id)
+        short_code = url.short_code
         url.delete_instance(recursive=True)
+
+        cache = current_app.extensions.get("cache")
+        if cache:
+            cache.delete(build_resolve_cache_key(short_code))
+
         return "", 204
     except DoesNotExist:
         return "", 204
@@ -113,6 +129,28 @@ def delete_url(url_id):
 def redirect_short_code(short_code):
     from peewee import DoesNotExist
     from flask import redirect
+    cache = current_app.extensions.get("cache")
+    cache_key = build_resolve_cache_key(short_code)
+
+    cached_payload = cache.get_json(cache_key) if cache else None
+    if cached_payload:
+        if not cached_payload.get("is_active", True):
+            response = jsonify({"error": "Gone"})
+            response.status_code = 410
+            response.headers["X-Cache"] = "HIT"
+            return response
+
+        Event.create(
+            url_id=cached_payload.get("url_id"),
+            user_id=cached_payload.get("user_id"),
+            event_type="click",
+            details=json.dumps({"short_code": short_code, "action": "redirect"})
+        )
+
+        response = redirect(cached_payload.get("original_url"), code=302)
+        response.headers["X-Cache"] = "HIT"
+        return response
+
     try:
         url = Url.get(Url.short_code == short_code)
     except DoesNotExist:
@@ -129,4 +167,15 @@ def redirect_short_code(short_code):
         event_type="click",
         details=json.dumps({"short_code": short_code, "action": "redirect"})
     )
-    return redirect(url.original_url, code=302)
+
+    if cache:
+        cache.set_json(cache_key, {
+            "url_id": url.id,
+            "user_id": url.user_id.id,
+            "original_url": url.original_url,
+            "is_active": url.is_active,
+        })
+
+    response = redirect(url.original_url, code=302)
+    response.headers["X-Cache"] = "MISS"
+    return response

@@ -1,0 +1,72 @@
+services:
+  k6_bronze:
+    image: python:3.13-slim
+    profiles: ["bronze"]
+    working_dir: /work
+    volumes:
+      - ../../../:/work
+    environment:
+      BASE_URL: ${BASE_URL:-http://nginx}
+      RESULT_JSON_PATH: ${RESULT_JSON_PATH:-load-testing/scalability/performance/results/bronze-docker-compose.json}
+      RESULT_MD_PATH: ${RESULT_MD_PATH:-load-testing/scalability/performance/results/bronze-docker-compose.md}
+    command:
+      [
+        "python",
+        "load-testing/scalability/performance/scripts/scalability_runner.py",
+        "run-load",
+        "--tier",
+        "bronze",
+        "--base-url",
+        "${BASE_URL:-http://nginx}",
+      ]
+    depends_on:
+      nginx:
+        condition: service_started
+
+  k6_silver:
+    image: python:3.13-slim
+    profiles: ["silver"]
+    working_dir: /work
+    volumes:
+      - ../../../:/work
+    environment:
+      BASE_URL: ${BASE_URL:-http://nginx}
+      RESULT_JSON_PATH: ${RESULT_JSON_PATH:-load-testing/scalability/performance/results/silver-docker-compose.json}
+      RESULT_MD_PATH: ${RESULT_MD_PATH:-load-testing/scalability/performance/results/silver-docker-compose.md}
+    command:
+      [
+        "python",
+        "load-testing/scalability/performance/scripts/scalability_runner.py",
+        "run-load",
+        "--tier",
+        "silver",
+        "--base-url",
+        "${BASE_URL:-http://nginx}",
+      ]
+    depends_on:
+      nginx:
+        condition: service_started
+
+  k6_gold:
+    image: python:3.13-slim
+    profiles: ["gold"]
+    working_dir: /work
+    volumes:
+      - ../../../:/work
+    environment:
+      BASE_URL: ${BASE_URL:-http://nginx}
+      RESULT_JSON_PATH: ${RESULT_JSON_PATH:-load-testing/scalability/performance/results/gold-docker-compose.json}
+      RESULT_MD_PATH: ${RESULT_MD_PATH:-load-testing/scalability/performance/results/gold-docker-compose.md}
+    command:
+      [
+        "python",
+        "load-testing/scalability/performance/scripts/scalability_runner.py",
+        "run-load",
+        "--tier",
+        "gold",
+        "--base-url",
+        "${BASE_URL:-http://nginx}",
+      ]
+    depends_on:
+      nginx:
+        condition: service_started
