@@ -6,6 +6,7 @@ dependencies = [
     "faker>=33.0",
     "flask>=3.1",
     "peewee>=3.17",
+    "prometheus-client>=0.24.1",
     "psutil>=7.0.0",
     "pre-commit>=4.5.1",
     "psycopg2-binary>=2.9",

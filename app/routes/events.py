@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from playhouse.shortcuts import model_to_dict
 from peewee import DataError
 
+from app.metrics import observe_event_created
 from app.models.event import Event
 from app.models.url import Url
 from app.models.user import User
@@ -91,6 +92,7 @@ def create_event():
         event_type=event_type.strip(),
         details=details_val
     )
+    observe_event_created(event_type.strip())
     
     event_dict = model_to_dict(event, recurse=False)
     event_dict["details"] = json.loads(event.details) if event.details else {}

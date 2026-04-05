@@ -5,6 +5,7 @@ from playhouse.shortcuts import model_to_dict
 from peewee import chunked, IntegrityError
 
 from app.database import db
+from app.metrics import observe_user_created
 from app.models.user import User
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
@@ -140,6 +141,7 @@ def create_user():
             }), 422
         try:
             user = User.create(username=username, email=email)
+            observe_user_created()
             return jsonify(model_to_dict(user, recurse=False)), 201
         except IntegrityError:
             # psycopg2 can leave the transaction aborted after an integrity error.
@@ -156,6 +158,7 @@ def create_user():
                 "SELECT setval(pg_get_serial_sequence('users','id'), COALESCE((SELECT MAX(id) FROM users), 1), true);"
             )
             user = User.create(username=username, email=email)
+            observe_user_created()
             return jsonify(model_to_dict(user, recurse=False)), 201
 
 @users_bp.route("/<int:user_id>", methods=["GET"])

@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, redirect, jsonify
 from peewee import DoesNotExist
 
 from app.cache import build_resolve_cache_key
+from app.metrics import observe_event_created, observe_url_resolution
 from app.models.url import Url
 from app.models.event import Event
 
@@ -28,6 +29,8 @@ def resolve_url(short_code: str) -> Any:
             event_type="click",
             details=json.dumps({"short_code": short_code, "action": "redirect"})
         )
+        observe_event_created("click")
+        observe_url_resolution(source="resolve", cache="HIT")
 
         response = redirect(cached_payload.get("original_url"), code=302)
         response.headers["X-Cache"] = "HIT"
@@ -48,6 +51,8 @@ def resolve_url(short_code: str) -> Any:
         event_type="click",
         details=json.dumps({"short_code": short_code, "action": "redirect"})
     )
+    observe_event_created("click")
+    observe_url_resolution(source="resolve", cache="MISS")
 
     if cache:
         cache.set_json(cache_key, {

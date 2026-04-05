@@ -32,6 +32,7 @@ services:
       dockerfile: Dockerfile
     environment:
       FLASK_DEBUG: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_NAME: ${DATABASE_NAME:-hackathon_db}
       DATABASE_HOST: postgres
       DATABASE_PORT: ${DATABASE_PORT:-5432}
@@ -97,7 +98,7 @@ services:
   nginx:
     image: nginx:1.27-alpine
     volumes:
-      - ./load-testing/scalability/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./production/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       app1:
         condition: service_healthy
@@ -107,4 +108,50 @@ services:
         condition: service_healthy
     ports:
       - "5000:80"
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./production/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./production/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./production/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    depends_on:
+      app1:
+        condition: service_started
+      app2:
+        condition: service_started
+      app3:
+        condition: service_started
+      alertmanager:
+        condition: service_started
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./production/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./production/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./production/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    ports:
+      - "3000:3000"
     restart: unless-stopped

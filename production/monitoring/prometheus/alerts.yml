@@ -1,0 +1,25 @@
+groups:
+  - name: url-shortener-alerts
+    rules:
+      - alert: UrlShortenerServiceDown
+        expr: up{job="url-shortener-app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "URL shortener instance is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} for more than 2 minutes."
+
+      - alert: UrlShortenerHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="url-shortener-app",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_requests_total{job="url-shortener-app"}[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate"
+          description: "5xx error rate is above 5% for 5 minutes."

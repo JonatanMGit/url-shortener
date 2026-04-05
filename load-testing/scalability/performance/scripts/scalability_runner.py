@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[4]
 PERF_DIR = ROOT / "load-testing" / "scalability" / "performance"
 RESULTS_DIR = PERF_DIR / "results"
 DOCKER_DIR = ROOT / "load-testing" / "scalability" / "docker"
-PROD_COMPOSE_FILE = ROOT / "docker-compose.production.yml"
+PERF_COMPOSE_FILE = DOCKER_DIR / "docker-compose.performance.yml"
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ def is_compose_nginx_running() -> bool:
         "docker",
         "compose",
         "-f",
-        str(PROD_COMPOSE_FILE),
+        str(PERF_COMPOSE_FILE),
         "ps",
         "--services",
         "--filter",
@@ -101,7 +101,7 @@ def start_stack() -> int:
         "docker",
         "compose",
         "-f",
-        str(PROD_COMPOSE_FILE),
+        str(PERF_COMPOSE_FILE),
         "up",
         "-d",
         "--build",
@@ -115,7 +115,7 @@ def stop_stack() -> int:
         "docker",
         "compose",
         "-f",
-        str(PROD_COMPOSE_FILE),
+        str(PERF_COMPOSE_FILE),
         "down",
         "-v",
     ]

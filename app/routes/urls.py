@@ -6,6 +6,7 @@ from playhouse.shortcuts import model_to_dict
 from urllib.parse import urlparse
 
 from app.cache import build_resolve_cache_key
+from app.metrics import observe_event_created, observe_url_created, observe_url_resolution
 from app.models.url import Url
 from app.models.user import User
 from app.models.event import Event
@@ -60,6 +61,8 @@ def create_url():
         event_type="created",
         details=json.dumps({"short_code": short_code, "original_url": data["original_url"]})
     )
+    observe_url_created()
+    observe_event_created("created")
 
     cache = current_app.extensions.get("cache")
     if cache:
@@ -146,6 +149,8 @@ def redirect_short_code(short_code):
             event_type="click",
             details=json.dumps({"short_code": short_code, "action": "redirect"})
         )
+        observe_event_created("click")
+        observe_url_resolution(source="urls_redirect", cache="HIT")
 
         response = redirect(cached_payload.get("original_url"), code=302)
         response.headers["X-Cache"] = "HIT"
@@ -166,6 +171,8 @@ def redirect_short_code(short_code):
         event_type="click",
         details=json.dumps({"short_code": short_code, "action": "redirect"})
     )
+    observe_event_created("click")
+    observe_url_resolution(source="urls_redirect", cache="MISS")
 
     if cache:
         cache.set_json(cache_key, {

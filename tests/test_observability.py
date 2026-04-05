@@ -28,6 +28,12 @@ def test_metrics_endpoint_returns_cpu_and_memory(client):
     assert process["threads"] >= 1
     assert process["uptime_seconds"] >= 0
 
+    business = sample["business"]
+    assert isinstance(business["users_total"], int)
+    assert isinstance(business["urls_total"], int)
+    assert isinstance(business["activity_last_hour_total"], int)
+    assert isinstance(business["resolutions_total"], int)
+
 
 def test_request_logging_emits_http_record(app, caplog):
     client = app.test_client()
@@ -105,3 +111,33 @@ def test_configure_logging_respects_log_level_and_json_output(monkeypatch, tmp_p
 
         root_logger.handlers = previous_handlers
         root_logger.setLevel(previous_level)
+
+
+def test_prometheus_metrics_endpoint_exposes_custom_metrics(client):
+    create_user = client.post("/users", json={"username": "prom_user", "email": "prom_user@example.com"})
+    assert create_user.status_code == 201
+    user_id = create_user.get_json()["id"]
+
+    create_url = client.post(
+        "/urls",
+        json={"user_id": user_id, "original_url": "https://example.com/prom", "title": "Prom"},
+    )
+    assert create_url.status_code == 201
+    short_code = create_url.get_json()["short_code"]
+
+    resolve = client.get(f"/r/{short_code}")
+    assert resolve.status_code == 302
+
+    response = client.get("/metrics/prometheus")
+    assert response.status_code == 200
+    assert response.mimetype.startswith("text/plain")
+
+    payload = response.get_data(as_text=True)
+    assert "http_requests_total" in payload
+    assert "users_created_total" in payload
+    assert "urls_created_total" in payload
+    assert "url_resolutions_total" in payload
+    assert "users_total" in payload
+    assert "activity_last_hour_total" in payload
+    assert "app_cpu_percent" in payload
+    assert "app_memory_rss_bytes" in payload

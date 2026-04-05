@@ -4,6 +4,7 @@ from peewee import DoesNotExist, IntegrityError
 import psycopg2.errors
 
 from app.database import db
+from app.metrics import observe_user_created
 
 errors_bp = Blueprint("errors", __name__)
 
@@ -46,6 +47,7 @@ def handle_integrity_error(e: IntegrityError) -> Tuple[Response, int]:
                         "SELECT setval(pg_get_serial_sequence('users','id'), COALESCE((SELECT MAX(id) FROM users), 1), true);"
                     )
                     created = User.create(username=username, email=email)
+                    observe_user_created()
                     return jsonify(model_to_dict(created, recurse=False)), 201
                 except IntegrityError:
                     if not db.is_closed():

@@ -8,6 +8,8 @@ from typing import Any
 
 from flask import Request, g, request
 
+from app.metrics import observe_http_request
+
 
 _STANDARD_LOG_FIELDS = {
     "name",
@@ -121,6 +123,9 @@ def register_request_logging(app) -> None:
             "duration_ms": duration_ms,
             "remote_addr": request.remote_addr,
         }
+
+        route_pattern = request.url_rule.rule if request.url_rule and request.url_rule.rule else _request_path(request)
+        observe_http_request(request.method, route_pattern, response.status_code)
 
         if response.status_code >= 400 and response.is_json:
             payload = response.get_json(silent=True)
