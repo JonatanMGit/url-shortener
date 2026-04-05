@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>URL Shortener UI</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: #222;
+            background: #f4f4f4;
+        }
+
+        .page {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        .hero {
+            margin-bottom: 1rem;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 1.75rem;
+        }
+
+        .hero p {
+            margin: 0.35rem 0 0;
+            color: #444;
+        }
+
+        .grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .card p {
+            margin-top: 0;
+            color: #444;
+        }
+
+        .field {
+            display: grid;
+            gap: 0.3rem;
+            margin-bottom: 0.75rem;
+        }
+
+        label {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        input {
+            border: 1px solid #bbb;
+            border-radius: 0.3rem;
+            padding: 0.55rem 0.6rem;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            outline: 1px solid #777;
+            outline-offset: 0;
+        }
+
+        button {
+            border: 1px solid #888;
+            border-radius: 0.3rem;
+            background: #ececec;
+            color: #111;
+            font-weight: 600;
+            padding: 0.55rem 0.85rem;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #e1e1e1;
+        }
+
+        .result {
+            margin-top: 0.6rem;
+            border-radius: 0.3rem;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 0.58rem;
+            min-height: 5.75rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.8rem;
+        }
+
+        .status-ok {
+            color: #1a7f37;
+            font-weight: 700;
+        }
+
+        .status-error {
+            color: #b42318;
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <section class="hero">
+            <h1>URL Shortener Control Panel</h1>
+            <p>Create users, shorten links, and resolve short URLs from one page.</p>
+        </section>
+
+        <section class="grid">
+            <div class="card">
+                <h2>Create Account</h2>
+                <p>Creates a new user via POST /users.</p>
+                <form id="user-form">
+                    <div class="field">
+                        <label for="username">Username</label>
+                        <input id="username" name="username" type="text" required />
+                    </div>
+                    <div class="field">
+                        <label for="email">Email</label>
+                        <input id="email" name="email" type="email" required />
+                    </div>
+                    <button type="submit">Create account</button>
+                </form>
+                <pre id="user-result" class="result">No request sent yet.</pre>
+            </div>
+
+            <div class="card">
+                <h2>Create URL</h2>
+                <p>Creates a short URL via POST /urls.</p>
+                <form id="url-form">
+                    <div class="field">
+                        <label for="user_id">User ID</label>
+                        <input id="user_id" name="user_id" type="number" min="1" required />
+                    </div>
+                    <div class="field">
+                        <label for="original_url">Original URL</label>
+                        <input id="original_url" name="original_url" type="url" placeholder="https://example.com"
+                            required />
+                    </div>
+                    <div class="field">
+                        <label for="title">Title</label>
+                        <input id="title" name="title" type="text" required />
+                    </div>
+                    <button type="submit">Create short URL</button>
+                </form>
+                <pre id="url-result" class="result">No request sent yet.</pre>
+            </div>
+
+            <div class="card">
+                <h2>Resolve URL</h2>
+                <p>Enter a short code (or full short URL), then resolve using GET /r/&lt;short_code&gt;.</p>
+                <form id="resolve-form">
+                    <div class="field">
+                        <label for="resolve_input">Short code or short URL</label>
+                        <input id="resolve_input" name="resolve_input" type="text"
+                            placeholder="abc123 or http://localhost:5000/r/abc123" required />
+                    </div>
+                    <button type="submit">Resolve now</button>
+                </form>
+                <pre id="resolve-result" class="result">No redirect attempted yet.</pre>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function prettyStatus(status) {
+            if (status >= 200 && status < 400) {
+                return "OK";
+            }
+            return "ERROR";
+        }
+
+        function renderResult(elementId, status, payload) {
+            const box = document.getElementById(elementId);
+            const label = prettyStatus(status);
+            const prefix = label === "OK" ? "status-ok" : "status-error";
+            box.innerHTML = "<span class=\"" + prefix + "\">" + label + " " + status + "</span>\n" + JSON.stringify(payload, null, 2);
+        }
+
+        async function postJson(url, payload) {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            let payloadBody = {};
+            try {
+                payloadBody = await response.json();
+            } catch (_error) {
+                payloadBody = { error: "Response body was not JSON" };
+            }
+
+            return { response, payloadBody };
+        }
+
+        document.getElementById("user-form").addEventListener("submit", async function (event) {
+            event.preventDefault();
+            const username = document.getElementById("username").value.trim();
+            const email = document.getElementById("email").value.trim();
+
+            const payload = { username: username, email: email };
+            const result = await postJson("/users", payload);
+            renderResult("user-result", result.response.status, result.payloadBody);
+
+            if (result.response.ok && result.payloadBody.id) {
+                document.getElementById("user_id").value = String(result.payloadBody.id);
+            }
+        });
+
+        document.getElementById("url-form").addEventListener("submit", async function (event) {
+            event.preventDefault();
+            const payload = {
+                user_id: Number(document.getElementById("user_id").value),
+                original_url: document.getElementById("original_url").value.trim(),
+                title: document.getElementById("title").value.trim()
+            };
+
+            const result = await postJson("/urls", payload);
+            renderResult("url-result", result.response.status, result.payloadBody);
+
+            if (result.response.ok && result.payloadBody.short_code) {
+                document.getElementById("resolve_input").value = result.payloadBody.short_code;
+            }
+        });
+
+        function extractShortCode(rawValue) {
+            const value = rawValue.trim();
+            if (!value) {
+                return "";
+            }
+
+            if (value.indexOf("://") === -1) {
+                const slashParts = value.split("/").filter(Boolean);
+                return slashParts.length ? slashParts[slashParts.length - 1] : value;
+            }
+
+            try {
+                const parsed = new URL(value);
+                const parts = parsed.pathname.split("/").filter(Boolean);
+                return parts.length ? parts[parts.length - 1] : "";
+            } catch (_error) {
+                return value;
+            }
+        }
+
+        document.getElementById("resolve-form").addEventListener("submit", function (event) {
+            event.preventDefault();
+            const input = document.getElementById("resolve_input").value;
+            const shortCode = extractShortCode(input);
+
+            if (!shortCode) {
+                renderResult("resolve-result", 400, { error: "Please provide a short code or short URL." });
+                return;
+            }
+
+            renderResult("resolve-result", 302, { message: "Redirecting", target: "/r/" + shortCode });
+            window.location.href = "/r/" + encodeURIComponent(shortCode);
+        });
+    </script>
+</body>
+
+</html>

@@ -64,6 +64,14 @@ Expected response:
 { "status": "ok" }
 ```
 
+Or use the built in web interface on port 5000.
+
+```text
+http://127.0.0.1:5000/
+```
+
+This allows you to create users, shorten URLs and resolve them.
+
 ## Quick start for production (docker compose + load balancing)
 
 This path runs Nginx + 3 Flask instances + PostgreSQL + Redis + monitoring.
@@ -119,6 +127,7 @@ Observability routes `/metrics` and `/metrics/prometheus` are implemented in the
 
 | method | path                          | purpose                 |
 | ------ | ----------------------------- | ----------------------- |
+| GET    | `/`                           | simple web UI           |
 | GET    | `/health`                     | health check            |
 | GET    | `/users`                      | list users              |
 | POST   | `/users`                      | create user             |
