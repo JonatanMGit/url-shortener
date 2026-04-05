@@ -26,3 +26,10 @@ The first pressure point is PostgreSQL write load from event creation on high re
 2. Increase app replicas behind nginx if CPU saturates.
 3. Tune PostgreSQL resources and connections.
 4. Move click writes to async processing for higher sustained traffic.
+
+## DigitalOcean scaling note
+
+- Horizontal scaling: preferred first step for this app layer by adding more app containers/replicas behind the load balancer.
+- Vertical scaling: increase CPU/RAM for stateful services (especially PostgreSQL and Redis) when bottlenecks are resource-bound.
+- Edge caching: DigitalOcean CDN can cache redirect responses (including `302` when cache policy and headers permit), reducing origin traffic and improving latency for repeated resolves.
+- Analytics caution: if redirects are served from edge cache, some origin-side click events will not be written by the app unless edge logs are also used.

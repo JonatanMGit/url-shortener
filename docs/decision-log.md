@@ -12,6 +12,22 @@ They were not optional architecture choices.
 
 All other decisions were made around these two constraints.
 
+## DigitalOcean platform decision
+
+DigitalOcean was chosen for deployment because it offers a straightforward path from local containers to a scalable production setup.
+
+- supports container-based deployments and managed infrastructure with low setup overhead
+- supports edge caching through CDN, which can cache redirect responses (including `302` when cache rules and response headers allow it)
+- edge-served redirects reduce repeated origin hits, lowering load on nginx, Flask containers, and PostgreSQL for hot links
+- supports horizontal scaling by increasing app container replicas behind a load balancer (preferred for this stateless API layer)
+- supports vertical scaling by increasing compute resources for app nodes and stateful components when needed
+
+Tradeoff:
+
+- redirect edge caching can reduce origin-side click event accuracy if requests are served without reaching the app
+- to preserve analytics quality, cache policies should be applied selectively or paired with edge-side analytics logs
+- managed platform convenience may cost more than self-hosted infrastructure at large sustained scale
+
 ## Redis decision
 
 Redis was chosen as a fast in-memory datastore to cache database-backed resolve data.
